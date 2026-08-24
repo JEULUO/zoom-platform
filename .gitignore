@@ -1,0 +1,36 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Java and Maven
+target/
+*.class
+*.jar
+*.war
+*.log
+.mvn/timing.properties
+
+# Node and frontend builds
+node_modules/
+dist/
+.vite/
+coverage/
+*.tsbuildinfo
+
+# IntelliJ IDEA and editors
+.idea/
+*.iml
+.vscode/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local runtime data
+data/
+logs/
+tmp/
