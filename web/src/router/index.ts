@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
 import BootstrapView from '@/views/BootstrapView.vue'
+import CampusView from '@/views/CampusView.vue'
 import LoginView from '@/views/LoginView.vue'
 
 const router = createRouter({
@@ -12,6 +13,12 @@ const router = createRouter({
       name: 'bootstrap',
       component: BootstrapView,
       meta: { requiresAuth: true },
+    },
+    {
+      path: '/campuses',
+      name: 'campuses',
+      component: CampusView,
+      meta: { requiresAuth: true, permission: 'campus.read' },
     },
     {
       path: '/login',
@@ -28,6 +35,9 @@ router.beforeEach(async (to) => {
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     return { name: 'login', query: { redirect: to.fullPath } }
+  }
+  if (typeof to.meta.permission === 'string' && !authStore.hasPermission(to.meta.permission)) {
+    return { name: 'bootstrap' }
   }
   if (to.meta.guestOnly && authStore.isAuthenticated) {
     return { name: 'bootstrap' }

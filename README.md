@@ -1,6 +1,6 @@
 # zoom-platform
 
-面向多校区教育培训机构的统一管理平台。项目当前处于工程初始化阶段。
+面向多校区教育培训机构的统一管理平台。当前已完成工程、数据库、认证权限和校区管理基础模块。
 
 ## 技术栈
 
@@ -68,6 +68,16 @@ zoom-platform/
 - 默认 `local` Profile 会额外写入四个示例校区，生产环境不加载本地种子数据。
 - 表关系、数据范围与迁移约定见 [`docs/database-foundation.md`](docs/database-foundation.md)。
 - 登录、令牌、账户锁定与权限上下文见 [`docs/authentication-foundation.md`](docs/authentication-foundation.md)。
+- 校区接口、数据范围、乐观锁和操作审计见 [`docs/campus-management.md`](docs/campus-management.md)。
+
+## 当前功能
+
+- 管理员登录、刷新会话、注销、账户锁定和 JWT 撤销。
+- 校区分页查询，可按名称、编码、城市和启停状态筛选。
+- 校区新建、编辑、启用和停用，不提供物理删除。
+- `campus.read`、`campus.manage` 权限与 `ALL`、`ASSIGNED_CAMPUSES` 数据范围联合校验。
+- 校区写操作使用 `version` 乐观锁，并写入 `sys_operation_audit`。
+- 桌面表格与移动端卡片布局，共用响应式管理后台导航。
 
 ## 质量检查
 
