@@ -4,7 +4,7 @@
 
 ## 技术栈
 
-- 后端：Java 17、Spring Boot 3.5、Maven Wrapper
+- 后端：Java 17、Spring Boot 3.5、MyBatis-Plus、Flyway、Maven Wrapper
 - 前端：Vue 3、TypeScript、Vite、Element Plus、Pinia、Vue Router
 - 基础设施：MySQL 8.4、Redis 7.4、Docker Compose
 
@@ -22,6 +22,7 @@ zoom-platform/
 - JDK 17，且 `JAVA_HOME` 指向该 JDK
 - Node.js 22 与 pnpm 11
 - Docker Desktop；Windows 首次启用 WSL 2 后需要重启系统
+- 本机 Docker 程序与 Linux 容器磁盘位于 `D:\Docker`，不要迁回 C 盘
 
 ## 本地开发
 
@@ -32,6 +33,13 @@ zoom-platform/
 5. 打开 `http://localhost:5173`，后端状态接口为 `http://localhost:8080/api/v1/system/status`。
 
 > 后端要求 `JAVA_HOME` 指向 JDK 17 或更高版本；执行 `.\mvnw.cmd -version` 可确认 Maven 实际使用的 Java 版本。
+> 项目 MySQL 默认映射到宿主机 `13306`，避免与本机 `MySQL80` 的 `3306` 端口冲突。
+
+## 数据库迁移
+
+- 后端启动时由 Flyway 自动执行通用迁移。
+- 默认 `local` Profile 会额外写入四个示例校区，生产环境不加载本地种子数据。
+- 表关系、数据范围与迁移约定见 [`docs/database-foundation.md`](docs/database-foundation.md)。
 
 ## 质量检查
 

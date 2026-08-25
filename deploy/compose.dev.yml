@@ -10,12 +10,13 @@ services:
       MYSQL_USER: ${MYSQL_USER:-zoom}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-zoom_dev_password}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-zoom_root_password}
-      TZ: Asia/Shanghai
+      TZ: UTC
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+00:00
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      - "${MYSQL_PORT:-13306}:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
