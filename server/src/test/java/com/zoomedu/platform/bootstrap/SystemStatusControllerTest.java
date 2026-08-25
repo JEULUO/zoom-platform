@@ -33,6 +33,7 @@ class SystemStatusControllerTest {
     @Test
     void deniesUnknownApiRoutes() throws Exception {
         mockMvc.perform(get("/api/v1/private"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
     }
 }

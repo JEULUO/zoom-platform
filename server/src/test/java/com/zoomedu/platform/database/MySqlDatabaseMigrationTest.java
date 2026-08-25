@@ -32,6 +32,8 @@ class MySqlDatabaseMigrationTest {
         registry.add("spring.flyway.locations",
                 () -> "classpath:db/migration,classpath:db/local");
         registry.add("management.health.redis.enabled", () -> false);
+        registry.add("app.security.jwt-secret",
+                () -> "zoom-platform-mysql-test-jwt-secret-with-at-least-32-characters");
     }
 
     @Autowired

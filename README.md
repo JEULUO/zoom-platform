@@ -26,20 +26,48 @@ zoom-platform/
 
 ## 本地开发
 
-1. 将 `.env.example` 复制为 `.env`，按需修改本地密码和端口。
-2. 启动基础设施：`docker compose --env-file .env -f deploy/compose.dev.yml up -d`。
-3. 启动后端：`cd server && .\mvnw.cmd spring-boot:run`。
-4. 安装并启动前端：`pnpm install && pnpm dev:web`。
-5. 打开 `http://localhost:5173`，后端状态接口为 `http://localhost:8080/api/v1/system/status`。
+1. 可将 `.env.example` 复制为 `.env` 并设置自己的开发密码；没有 `.env` 时使用 Compose 和 `local` Profile 的开发默认值。
+2. 启动基础设施：`docker compose -f deploy/compose.dev.yml up -d`。
+3. 启动后端：进入 `server` 后执行 `.\mvnw.cmd spring-boot:run`。
+4. 安装并启动前端：`pnpm install`、`pnpm dev:web`。
+5. 打开 `http://localhost:5173`，使用本地管理员登录。
 
 > 后端要求 `JAVA_HOME` 指向 JDK 17 或更高版本；执行 `.\mvnw.cmd -version` 可确认 Maven 实际使用的 Java 版本。
 > 项目 MySQL 默认映射到宿主机 `13306`，避免与本机 `MySQL80` 的 `3306` 端口冲突。
+
+当前机器的 Docker CLI 位于 D 盘。如果终端中的 `docker` 命令尚未更新 PATH，可以直接执行：
+
+```powershell
+& 'D:\Docker\Docker\resources\bin\docker.exe' compose -f deploy\compose.dev.yml up -d
+```
+
+本地默认账户仅用于开发环境：
+
+| 用途 | 账户 | 默认密码 |
+| --- | --- | --- |
+| 平台管理员 | `admin` | `ZoomDev@2026!` |
+| MySQL 应用连接 | `zoom` | `zoom_dev_password` |
+| MySQL root | `root` | `zoom_root_password` |
+
+如创建了 `.env`，以其中的 `BOOTSTRAP_ADMIN_PASSWORD`、`MYSQL_PASSWORD` 和 `MYSQL_ROOT_PASSWORD` 为准。
+
+### Navicat 连接
+
+- 连接类型：MySQL
+- 主机：`127.0.0.1`
+- 端口：`13306`
+- 用户名：`zoom`
+- 密码：`zoom_dev_password`，或 `.env` 中的 `MYSQL_PASSWORD`
+- 默认数据库：`zoom_platform`
+
+先确认 `zoom-platform-mysql` 容器状态为 `healthy`，再在 Navicat 中测试连接。MySQL 容器内部仍使用 `3306`，Navicat 必须填写宿主机映射端口 `13306`。
 
 ## 数据库迁移
 
 - 后端启动时由 Flyway 自动执行通用迁移。
 - 默认 `local` Profile 会额外写入四个示例校区，生产环境不加载本地种子数据。
 - 表关系、数据范围与迁移约定见 [`docs/database-foundation.md`](docs/database-foundation.md)。
+- 登录、令牌、账户锁定与权限上下文见 [`docs/authentication-foundation.md`](docs/authentication-foundation.md)。
 
 ## 质量检查
 

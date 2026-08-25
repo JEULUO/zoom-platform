@@ -14,3 +14,7 @@ management:
   health:
     redis:
       enabled: false
+app:
+  security:
+    jwt-secret: zoom-platform-test-jwt-secret-with-at-least-32-characters
+    secure-cookies: false

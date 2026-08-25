@@ -8,6 +8,7 @@ import {
   Building2,
   CircleDollarSign,
   Gauge,
+  LogOut,
   Menu,
   RefreshCw,
   Server,
@@ -16,9 +17,13 @@ import {
 } from 'lucide-vue-next'
 
 import { useSystemStore } from '@/stores/system'
+import { useAuthStore } from '@/stores/auth'
+import { useRouter } from 'vue-router'
 
 const { t } = useI18n()
+const authStore = useAuthStore()
 const systemStore = useSystemStore()
+const router = useRouter()
 const sidebarOpen = ref(false)
 
 const navigation = [
@@ -36,6 +41,11 @@ const statusLabel = computed(() => {
 })
 
 onMounted(() => systemStore.checkStatus())
+
+async function logout() {
+  await authStore.logout()
+  await router.replace({ name: 'login' })
+}
 </script>
 
 <template>
@@ -96,9 +106,16 @@ onMounted(() => systemStore.checkStatus())
           <Building2 :size="17" aria-hidden="true" />
           <span>全部校区</span>
         </div>
-        <div class="profile-chip" aria-label="当前用户">
-          <span>管</span>
-          <strong>系统管理员</strong>
+        <div class="profile-actions">
+          <div class="profile-chip" aria-label="当前用户">
+            <span>{{ authStore.user?.displayName.slice(0, 1) }}</span>
+            <strong>{{ authStore.user?.displayName }}</strong>
+          </div>
+          <el-tooltip :content="t('auth.logout')" placement="bottom">
+            <button class="icon-button profile-logout" type="button" :aria-label="t('auth.logout')" @click="logout">
+              <LogOut :size="18" />
+            </button>
+          </el-tooltip>
         </div>
       </header>
 
@@ -171,9 +188,11 @@ onMounted(() => systemStore.checkStatus())
               <div class="service-card__icon service-card__icon--amber"><Server :size="22" /></div>
               <div class="service-card__body">
                 <span>{{ t('bootstrap.mysql') }}</span>
-                <strong>localhost:3306</strong>
+                <strong>localhost:13306</strong>
               </div>
-              <span class="state-label">{{ t('bootstrap.pending') }}</span>
+              <span class="state-label" :class="{ 'state-label--ready': systemStore.isReady }">
+                {{ systemStore.isReady ? t('bootstrap.ready') : t('bootstrap.pending') }}
+              </span>
             </article>
 
             <article class="service-card">
@@ -182,7 +201,9 @@ onMounted(() => systemStore.checkStatus())
                 <span>{{ t('bootstrap.redis') }}</span>
                 <strong>localhost:6379</strong>
               </div>
-              <span class="state-label">{{ t('bootstrap.pending') }}</span>
+              <span class="state-label" :class="{ 'state-label--ready': systemStore.isReady }">
+                {{ systemStore.isReady ? t('bootstrap.ready') : t('bootstrap.pending') }}
+              </span>
             </article>
           </div>
         </section>
