@@ -19,6 +19,7 @@
 
     <properties>
         <java.version>17</java.version>
+        <flyway.version>11.20.3</flyway.version>
         <mybatis-plus.version>3.5.14</mybatis-plus.version>
     </properties>
 
