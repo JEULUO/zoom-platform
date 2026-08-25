@@ -12,6 +12,11 @@ export interface UserRoleAssignment {
   dataScope: DataScope
 }
 
+export interface UserRoleOption extends UserRoleAssignment {
+  id: number
+  sortOrder: number
+}
+
 export interface UserCampusAssignment {
   id: number
   code: string
@@ -53,6 +58,21 @@ interface UserPageResponse {
 interface UserDirectoryOptions {
   statuses: UserStatus[]
   campuses: UserCampusAssignment[]
+  roles: UserRoleOption[]
+}
+
+export interface UserFormValues {
+  username: string
+  initialPassword: string
+  displayName: string
+  email: string
+  phone: string
+  preferredLanguage: string
+  timezone: string
+  status: 'PENDING' | 'ACTIVE'
+  roleIds: number[]
+  campusIds: number[]
+  primaryCampusId: number | null
 }
 
 interface ApiErrorResponse {
@@ -82,6 +102,7 @@ export const useUserDirectoryStore = defineStore('user-directory', () => {
   const campusFilter = ref<number | ''>('')
   const statuses = ref<UserStatus[]>([])
   const campuses = ref<UserCampusAssignment[]>([])
+  const roles = ref<UserRoleOption[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -101,9 +122,14 @@ export const useUserDirectoryStore = defineStore('user-directory', () => {
     )
   }
 
-  async function request<T>(path: string) {
+  async function request<T>(path: string, init: RequestInit = {}) {
     const response = await authStore.authorizedFetch(path, {
-      headers: { Accept: 'application/json' },
+      ...init,
+      headers: {
+        Accept: 'application/json',
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+        ...init.headers,
+      },
     })
     if (!response.ok) await readError(response)
     return (await response.json()) as T
@@ -140,15 +166,39 @@ export const useUserDirectoryStore = defineStore('user-directory', () => {
     const result = await request<UserDirectoryOptions>('/api/v1/users/options')
     statuses.value = result.statuses
     campuses.value = result.campuses
+    roles.value = result.roles
   }
 
   async function fetchById(id: number) {
     return request<UserDetail>(`/api/v1/users/${id}`)
   }
 
+  async function createUser(values: UserFormValues) {
+    return request<UserDetail>('/api/v1/users', {
+      method: 'POST',
+      body: JSON.stringify(values),
+    })
+  }
+
+  async function updateUser(id: number, values: UserFormValues, version: number) {
+    const { username: _username, initialPassword: _initialPassword, status: _status, ...profile } = values
+    return request<UserDetail>(`/api/v1/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...profile, version }),
+    })
+  }
+
+  async function updateUserStatus(id: number, status: 'ACTIVE' | 'DISABLED', version: number) {
+    return request<UserDetail>(`/api/v1/users/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, version }),
+    })
+  }
+
   return {
     campusFilter,
     campuses,
+    createUser,
     error,
     fetchById,
     fetchOptions,
@@ -158,9 +208,12 @@ export const useUserDirectoryStore = defineStore('user-directory', () => {
     loading,
     page,
     pageSize,
+    roles,
     statusFilter,
     statuses,
     total,
     totalPages,
+    updateUser,
+    updateUserStatus,
   }
 })

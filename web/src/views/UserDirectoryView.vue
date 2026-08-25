@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElTooltip } from 'element-plus'
 import 'element-plus/es/components/tooltip/style/css'
@@ -10,6 +10,10 @@ import {
   Eye,
   LoaderCircle,
   MapPin,
+  Pencil,
+  Plus,
+  Power,
+  PowerOff,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -24,6 +28,8 @@ import {
   UserDirectoryRequestError,
   useUserDirectoryStore,
   type UserDetail,
+  type UserFormValues,
+  type UserSummary,
   type UserStatus,
 } from '@/stores/user-directory'
 import '@/styles/user-directory.css'
@@ -35,6 +41,18 @@ const detailOpen = ref(false)
 const detailBusy = ref(false)
 const detailError = ref('')
 const selectedUser = ref<UserDetail | null>(null)
+const formOpen = ref(false)
+const formMode = ref<'create' | 'edit'>('create')
+const formBusy = ref(false)
+const formError = ref('')
+const editingId = ref<number | null>(null)
+const editingVersion = ref(0)
+const statusTarget = ref<UserSummary | null>(null)
+const statusBusy = ref(false)
+const notice = ref('')
+const form = reactive<UserFormValues>(emptyForm())
+
+const canManage = computed(() => authStore.hasPermission('user.manage'))
 
 const scopeLabel = computed(() =>
   t(`users.scopes.${authStore.user?.dataScope ?? 'SELF'}`),
@@ -51,6 +69,129 @@ const pageSummary = computed(() => {
   )
   return t('users.pageSummary', { start, end, total: directoryStore.total })
 })
+
+function emptyForm(): UserFormValues {
+  return {
+    username: '',
+    initialPassword: '',
+    displayName: '',
+    email: '',
+    phone: '',
+    preferredLanguage: 'zh-CN',
+    timezone: 'Asia/Shanghai',
+    status: 'ACTIVE',
+    roleIds: [],
+    campusIds: [],
+    primaryCampusId: null,
+  }
+}
+
+function resetForm(values: UserFormValues = emptyForm()) {
+  Object.assign(form, values)
+  formError.value = ''
+}
+
+function detailToForm(user: UserDetail): UserFormValues {
+  return {
+    username: user.username,
+    initialPassword: '',
+    displayName: user.displayName,
+    email: user.email ?? '',
+    phone: user.phone ?? '',
+    preferredLanguage: user.preferredLanguage,
+    timezone: user.timezone,
+    status: user.status === 'PENDING' ? 'PENDING' : 'ACTIVE',
+    roleIds: directoryStore.roles
+      .filter((role) => user.roles.some((assigned) => assigned.code === role.code))
+      .map((role) => role.id),
+    campusIds: user.campuses.map((campus) => campus.id),
+    primaryCampusId: user.campuses.find((campus) => campus.primaryCampus)?.id ?? null,
+  }
+}
+
+function openCreate() {
+  formMode.value = 'create'
+  editingId.value = null
+  editingVersion.value = 0
+  resetForm()
+  formOpen.value = true
+}
+
+async function openEdit(user: UserSummary) {
+  formMode.value = 'edit'
+  editingId.value = user.id
+  formOpen.value = true
+  formBusy.value = true
+  formError.value = ''
+  try {
+    const detail = await directoryStore.fetchById(user.id)
+    editingVersion.value = detail.version
+    resetForm(detailToForm(detail))
+  } catch (error) {
+    formError.value = errorMessage(requestCode(error))
+  } finally {
+    formBusy.value = false
+  }
+}
+
+function closeForm() {
+  if (!formBusy.value) formOpen.value = false
+}
+
+function toggleCampus(campusId: number, checked: boolean) {
+  form.campusIds = checked
+    ? [...form.campusIds, campusId]
+    : form.campusIds.filter((id) => id !== campusId)
+  if (!form.campusIds.includes(form.primaryCampusId ?? -1)) {
+    form.primaryCampusId = form.campusIds[0] ?? null
+  }
+}
+
+async function submitForm() {
+  if (formBusy.value) return
+  formBusy.value = true
+  formError.value = ''
+  try {
+    if (formMode.value === 'create') {
+      await directoryStore.createUser({ ...form })
+      showNotice(t('users.created'))
+    } else if (editingId.value !== null) {
+      await directoryStore.updateUser(editingId.value, { ...form }, editingVersion.value)
+      showNotice(t('users.updated'))
+    }
+    formOpen.value = false
+    await loadPage()
+  } catch (error) {
+    formError.value = errorMessage(requestCode(error))
+  } finally {
+    formBusy.value = false
+  }
+}
+
+function requestStatusChange(user: UserSummary) {
+  statusTarget.value = user
+}
+
+async function confirmStatusChange() {
+  if (!statusTarget.value || statusBusy.value) return
+  statusBusy.value = true
+  const nextStatus = statusTarget.value.status === 'DISABLED' ? 'ACTIVE' : 'DISABLED'
+  try {
+    await directoryStore.updateUserStatus(
+      statusTarget.value.id,
+      nextStatus,
+      statusTarget.value.version,
+    )
+    showNotice(nextStatus === 'ACTIVE' ? t('users.activated') : t('users.disabled'))
+    statusTarget.value = null
+    await loadPage()
+  } catch (error) {
+    showNotice(errorMessage(requestCode(error)))
+    statusTarget.value = null
+  } finally {
+    statusBusy.value = false
+  }
+}
 
 async function loadPage(page = directoryStore.page) {
   try {
@@ -97,9 +238,27 @@ function requestCode(error: unknown) {
 }
 
 function errorMessage(code: string) {
-  return code === 'USER_NOT_FOUND'
-    ? t('users.errors.USER_NOT_FOUND')
-    : t('users.errors.DEFAULT')
+  const known = [
+    'USER_NOT_FOUND',
+    'USER_IDENTIFIER_EXISTS',
+    'USER_VERSION_CONFLICT',
+    'USER_ROLE_REQUIRED',
+    'USER_CAMPUS_REQUIRED',
+    'USER_PRIMARY_CAMPUS_INVALID',
+    'USER_SELF_STATUS_FORBIDDEN',
+    'USER_SELF_MANAGE_FORBIDDEN',
+    'USER_STATUS_INVALID',
+    'INVALID_TIMEZONE',
+    'VALIDATION_FAILED',
+  ].includes(code)
+  return known ? t(`users.errors.${code}`) : t('users.errors.DEFAULT')
+}
+
+function showNotice(message: string) {
+  notice.value = message
+  window.setTimeout(() => {
+    if (notice.value === message) notice.value = ''
+  }, 3000)
 }
 
 function statusLabel(status: UserStatus) {
@@ -125,13 +284,19 @@ onMounted(async () => {
 
 <template>
   <AppShell :context-label="t('nav.people')">
-    <section class="page-heading">
+    <section class="page-heading user-page-heading">
       <div>
         <p class="eyebrow">{{ t('users.eyebrow') }}</p>
         <h1>{{ t('users.title') }}</h1>
         <p class="page-description">{{ t('users.scopeLabel', { scope: scopeLabel }) }}</p>
       </div>
+      <button v-if="canManage" class="primary-command" type="button" @click="openCreate">
+        <Plus :size="18" />
+        <span>{{ t('users.create') }}</span>
+      </button>
     </section>
+
+    <div v-if="notice" class="operation-notice" role="status">{{ notice }}</div>
 
     <section class="directory-toolbar" :aria-label="t('users.filtersLabel')">
       <form class="directory-search" @submit.prevent="search">
@@ -207,6 +372,17 @@ onMounted(async () => {
                   <el-tooltip :content="t('users.view')" placement="top">
                     <button class="table-action" type="button" :aria-label="`${t('users.view')} ${user.displayName}`" @click="openDetail(user.id)"><Eye :size="17" /></button>
                   </el-tooltip>
+                  <template v-if="canManage">
+                    <el-tooltip :content="t('users.edit')" placement="top">
+                      <button class="table-action" type="button" :disabled="user.id === authStore.user?.id" :aria-label="`${t('users.edit')} ${user.displayName}`" @click="openEdit(user)"><Pencil :size="16" /></button>
+                    </el-tooltip>
+                    <el-tooltip :content="user.status === 'DISABLED' ? t('users.activate') : t('users.disable')" placement="top">
+                      <button class="table-action" type="button" :disabled="user.id === authStore.user?.id" :aria-label="`${user.status === 'DISABLED' ? t('users.activate') : t('users.disable')} ${user.displayName}`" @click="requestStatusChange(user)">
+                        <Power v-if="user.status === 'DISABLED'" :size="16" />
+                        <PowerOff v-else :size="16" />
+                      </button>
+                    </el-tooltip>
+                  </template>
                 </td>
               </tr>
             </tbody>
@@ -224,7 +400,15 @@ onMounted(async () => {
               <div><dt>{{ t('users.columns.roles') }}</dt><dd>{{ user.roles.map((role) => role.name).join('、') || '—' }}</dd></div>
               <div><dt>{{ t('users.columns.campuses') }}</dt><dd>{{ user.campuses.map((campus) => campus.name).join('、') || '—' }}</dd></div>
             </dl>
-            <button class="secondary-command" type="button" @click="openDetail(user.id)"><Eye :size="16" />{{ t('users.view') }}</button>
+            <div class="directory-mobile-actions">
+              <button class="secondary-command" type="button" @click="openDetail(user.id)"><Eye :size="16" />{{ t('users.view') }}</button>
+              <button v-if="canManage && user.id !== authStore.user?.id" class="secondary-command" type="button" @click="openEdit(user)"><Pencil :size="16" />{{ t('users.edit') }}</button>
+              <button v-if="canManage && user.id !== authStore.user?.id" class="secondary-command" type="button" @click="requestStatusChange(user)">
+                <Power v-if="user.status === 'DISABLED'" :size="16" />
+                <PowerOff v-else :size="16" />
+                {{ user.status === 'DISABLED' ? t('users.activate') : t('users.disable') }}
+              </button>
+            </div>
           </article>
         </div>
 
@@ -295,6 +479,99 @@ onMounted(async () => {
             </dl>
           </section>
         </div>
+      </section>
+    </div>
+
+    <div v-if="formOpen" class="modal-backdrop" @mousedown.self="closeForm">
+      <section class="user-form-modal" role="dialog" aria-modal="true" aria-labelledby="user-form-title">
+        <header class="user-detail-modal__header">
+          <div>
+            <p class="eyebrow">{{ formMode === 'create' ? t('users.createEyebrow') : `@${form.username}` }}</p>
+            <h2 id="user-form-title">{{ formMode === 'create' ? t('users.createTitle') : t('users.editTitle') }}</h2>
+          </div>
+          <button class="icon-button" type="button" :aria-label="t('users.closeForm')" :disabled="formBusy" @click="closeForm"><X :size="19" /></button>
+        </header>
+
+        <form class="user-form" @submit.prevent="submitForm">
+          <div v-if="formError" class="user-form-error" role="alert">{{ formError }}</div>
+          <div class="user-form-grid">
+            <label>
+              <span>{{ t('users.fields.username') }}</span>
+              <input v-model.trim="form.username" required maxlength="64" pattern="[A-Za-z0-9._-]+" :disabled="formMode === 'edit'" />
+            </label>
+            <label v-if="formMode === 'create'">
+              <span>{{ t('users.fields.initialPassword') }}</span>
+              <input v-model="form.initialPassword" type="password" required minlength="8" maxlength="72" autocomplete="new-password" />
+            </label>
+            <label>
+              <span>{{ t('users.fields.displayName') }}</span>
+              <input v-model.trim="form.displayName" required maxlength="100" />
+            </label>
+            <label>
+              <span>{{ t('users.fields.email') }}</span>
+              <input v-model.trim="form.email" type="email" maxlength="160" />
+            </label>
+            <label>
+              <span>{{ t('users.fields.phone') }}</span>
+              <input v-model.trim="form.phone" maxlength="32" />
+            </label>
+            <label>
+              <span>{{ t('users.fields.language') }}</span>
+              <select v-model="form.preferredLanguage"><option value="zh-CN">简体中文</option><option value="en-GB">English (UK)</option></select>
+            </label>
+            <label>
+              <span>{{ t('users.fields.timezone') }}</span>
+              <input v-model.trim="form.timezone" required maxlength="64" />
+            </label>
+            <label v-if="formMode === 'create'">
+              <span>{{ t('users.fields.status') }}</span>
+              <select v-model="form.status"><option value="ACTIVE">{{ statusLabel('ACTIVE') }}</option><option value="PENDING">{{ statusLabel('PENDING') }}</option></select>
+            </label>
+          </div>
+
+          <fieldset class="user-assignment-fieldset">
+            <legend>{{ t('users.rolesTitle') }}</legend>
+            <label v-for="role in directoryStore.roles" :key="role.id" class="assignment-option">
+              <input v-model="form.roleIds" type="checkbox" :value="role.id" />
+              <span><strong>{{ role.name }}</strong><small>{{ t(`users.scopes.${role.dataScope}`) }}</small></span>
+            </label>
+          </fieldset>
+
+          <fieldset class="user-assignment-fieldset">
+            <legend>{{ t('users.campusesTitle') }}</legend>
+            <div v-for="campus in directoryStore.campuses" :key="campus.id" class="assignment-option assignment-option--campus">
+              <label class="assignment-option__main">
+                <input type="checkbox" :checked="form.campusIds.includes(campus.id)" @change="toggleCampus(campus.id, ($event.target as HTMLInputElement).checked)" />
+                <span><strong>{{ campus.name }}</strong><small>{{ campus.code }}</small></span>
+              </label>
+              <label v-if="form.campusIds.includes(campus.id)" class="primary-campus-choice">
+                <input v-model="form.primaryCampusId" type="radio" :value="campus.id" />
+                <span>{{ t('users.primaryCampus') }}</span>
+              </label>
+            </div>
+            <p v-if="directoryStore.campuses.length === 0" class="muted-value">{{ t('users.noCampusesAvailable') }}</p>
+          </fieldset>
+
+          <footer class="user-form-footer">
+            <button class="secondary-command" type="button" :disabled="formBusy" @click="closeForm">{{ t('users.cancel') }}</button>
+            <button class="primary-command" type="submit" :disabled="formBusy || form.roleIds.length === 0">
+              <LoaderCircle v-if="formBusy" class="spinning" :size="17" />
+              <span>{{ formBusy ? t('users.saving') : t('users.save') }}</span>
+            </button>
+          </footer>
+        </form>
+      </section>
+    </div>
+
+    <div v-if="statusTarget" class="modal-backdrop" @mousedown.self="statusTarget = null">
+      <section class="confirm-dialog" role="alertdialog" aria-modal="true">
+        <div class="confirm-dialog__icon"><PowerOff :size="23" /></div>
+        <h2>{{ statusTarget.status === 'DISABLED' ? t('users.confirmActivate') : t('users.confirmDisable') }}</h2>
+        <p>{{ statusTarget.displayName }}</p>
+        <footer>
+          <button class="secondary-command" type="button" :disabled="statusBusy" @click="statusTarget = null">{{ t('users.cancel') }}</button>
+          <button class="primary-command" type="button" :disabled="statusBusy" @click="confirmStatusChange">{{ t('users.confirm') }}</button>
+        </footer>
       </section>
     </div>
   </AppShell>

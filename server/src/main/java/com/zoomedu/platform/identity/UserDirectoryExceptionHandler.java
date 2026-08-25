@@ -7,6 +7,7 @@ import java.time.Clock;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
@@ -26,7 +27,11 @@ class UserDirectoryExceptionHandler {
         return response(exception.status(), exception.code(), exception.getMessage(), request);
     }
 
-    @ExceptionHandler({ConstraintViolationException.class, MethodArgumentTypeMismatchException.class})
+    @ExceptionHandler({
+            ConstraintViolationException.class,
+            MethodArgumentNotValidException.class,
+            MethodArgumentTypeMismatchException.class
+    })
     ResponseEntity<ApiErrorResponse> handleInvalidRequest(
             Exception exception,
             HttpServletRequest request) {

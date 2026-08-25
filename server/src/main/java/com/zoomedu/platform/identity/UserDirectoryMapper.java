@@ -1,9 +1,12 @@
 package com.zoomedu.platform.identity;
 
 import java.util.List;
+import org.apache.ibatis.annotations.Delete;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 @Mapper
 interface UserDirectoryMapper {
@@ -129,6 +132,15 @@ interface UserDirectoryMapper {
     UserRow findById(Long id);
 
     @Select("""
+            SELECT id, username, display_name, email, phone, preferred_language, timezone,
+                   status, failed_login_attempts, locked_until, last_login_at,
+                   password_changed_at, version, created_at, updated_at
+            FROM sys_user
+            WHERE username = #{username}
+            """)
+    UserRow findByUsername(String username);
+
+    @Select("""
             <script>
             SELECT COUNT(*) > 0
             FROM sys_user_campus
@@ -194,6 +206,7 @@ interface UserDirectoryMapper {
                    FALSE AS primary_campus, campus.status
             FROM org_campus campus
             <where>
+                AND campus.status = 'ACTIVE'
                 <if test="!allAccess">
                     <choose>
                         <when test="campusIds != null and campusIds.size() > 0">
@@ -214,4 +227,130 @@ interface UserDirectoryMapper {
     List<UserCampusRow> findCampusOptions(
             @Param("allAccess") boolean allAccess,
             @Param("campusIds") List<Long> campusIds);
+
+    @Select("""
+            SELECT id, code, name, data_scope, sort_order
+            FROM sys_role
+            WHERE status = 'ACTIVE'
+            ORDER BY sort_order, name, id
+            """)
+    List<UserRoleOption> findRoleOptions();
+
+    @Select("""
+            <script>
+            SELECT id, code, name, data_scope, sort_order
+            FROM sys_role
+            WHERE id IN
+              <foreach collection="roleIds" item="roleId" open="(" separator="," close=")">
+                  #{roleId}
+              </foreach>
+              AND status = 'ACTIVE'
+            ORDER BY sort_order, name, id
+            </script>
+            """)
+    List<UserRoleOption> findRolesByIds(@Param("roleIds") List<Long> roleIds);
+
+    @Select("""
+            SELECT role.id, role.code, role.name, role.data_scope, role.sort_order
+            FROM sys_role role
+            JOIN sys_user_role user_role ON user_role.role_id = role.id
+            WHERE user_role.user_id = #{userId}
+            ORDER BY role.sort_order, role.name, role.id
+            """)
+    List<UserRoleOption> findUserRoleOptions(Long userId);
+
+    @Select("""
+            <script>
+            SELECT COUNT(*)
+            FROM sys_user_campus
+            WHERE user_id = #{userId}
+              AND campus_id NOT IN
+              <foreach collection="campusIds" item="campusId" open="(" separator="," close=")">
+                  #{campusId}
+              </foreach>
+            </script>
+            """)
+    long countInaccessibleCampuses(
+            @Param("userId") Long userId,
+            @Param("campusIds") List<Long> campusIds);
+
+    @Insert("""
+            INSERT INTO sys_user (
+                username, password_hash, display_name, email, phone,
+                preferred_language, timezone, status, created_by, updated_by
+            ) VALUES (
+                #{user.username}, #{user.passwordHash}, #{user.displayName}, #{user.email}, #{user.phone},
+                #{user.preferredLanguage}, #{user.timezone}, #{user.status}, #{actorUserId}, #{actorUserId}
+            )
+            """)
+    int insertUser(@Param("user") UserMutation user, @Param("actorUserId") Long actorUserId);
+
+    @Update("""
+            UPDATE sys_user
+            SET display_name = #{user.displayName},
+                email = #{user.email},
+                phone = #{user.phone},
+                preferred_language = #{user.preferredLanguage},
+                timezone = #{user.timezone},
+                updated_by = #{actorUserId},
+                updated_at = CURRENT_TIMESTAMP(6),
+                version = version + 1
+            WHERE id = #{id} AND version = #{version}
+            """)
+    int updateUser(
+            @Param("id") Long id,
+            @Param("user") UserMutation user,
+            @Param("version") int version,
+            @Param("actorUserId") Long actorUserId);
+
+    @Update("""
+            UPDATE sys_user
+            SET status = #{status},
+                failed_login_attempts = 0,
+                locked_until = NULL,
+                updated_by = #{actorUserId},
+                updated_at = CURRENT_TIMESTAMP(6),
+                version = version + 1
+            WHERE id = #{id} AND version = #{version}
+            """)
+    int updateUserStatus(
+            @Param("id") Long id,
+            @Param("status") UserStatus status,
+            @Param("version") int version,
+            @Param("actorUserId") Long actorUserId);
+
+    @Delete("DELETE FROM sys_user_role WHERE user_id = #{userId}")
+    int deleteUserRoles(Long userId);
+
+    @Insert("""
+            <script>
+            INSERT INTO sys_user_role (user_id, role_id, assigned_by)
+            VALUES
+            <foreach collection="roleIds" item="roleId" separator=",">
+                (#{userId}, #{roleId}, #{actorUserId})
+            </foreach>
+            </script>
+            """)
+    int insertUserRoles(
+            @Param("userId") Long userId,
+            @Param("roleIds") List<Long> roleIds,
+            @Param("actorUserId") Long actorUserId);
+
+    @Delete("DELETE FROM sys_user_campus WHERE user_id = #{userId}")
+    int deleteUserCampuses(Long userId);
+
+    @Insert("""
+            <script>
+            INSERT INTO sys_user_campus (user_id, campus_id, primary_campus, assigned_by)
+            VALUES
+            <foreach collection="campusIds" item="campusId" separator=",">
+                (#{userId}, #{campusId}, #{campusId} = #{primaryCampusId}, #{actorUserId})
+            </foreach>
+            </script>
+            """)
+    int insertUserCampuses(
+            @Param("userId") Long userId,
+            @Param("campusIds") List<Long> campusIds,
+            @Param("primaryCampusId") Long primaryCampusId,
+            @Param("actorUserId") Long actorUserId);
 }

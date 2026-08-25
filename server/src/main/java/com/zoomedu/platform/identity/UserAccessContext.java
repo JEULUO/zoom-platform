@@ -7,13 +7,17 @@ import org.springframework.security.oauth2.jwt.Jwt;
 record UserAccessContext(
         Long userId,
         DataScope dataScope,
-        List<Long> campusIds) {
+        List<Long> campusIds,
+        List<String> roleCodes,
+        List<String> permissionCodes) {
 
     static UserAccessContext from(Jwt jwt) {
         return new UserAccessContext(
                 Long.valueOf(jwt.getSubject()),
                 DataScope.valueOf(jwt.getClaimAsString("dataScope")),
-                readCampusIds(jwt.getClaim("campusIds")));
+                readCampusIds(jwt.getClaim("campusIds")),
+                readStrings(jwt.getClaim("roles")),
+                readStrings(jwt.getClaim("permissions")));
     }
 
     boolean hasAllAccess() {
@@ -28,6 +32,10 @@ record UserAccessContext(
         return campusId == null || hasAllAccess() || campusIds.contains(campusId);
     }
 
+    boolean canManageUsers() {
+        return permissionCodes.contains("user.manage");
+    }
+
     private static List<Long> readCampusIds(Object claim) {
         if (!(claim instanceof List<?> values)) {
             return List.of();
@@ -40,5 +48,12 @@ record UserAccessContext(
             return number.longValue();
         }
         return Long.valueOf(String.valueOf(value));
+    }
+
+    private static List<String> readStrings(Object claim) {
+        if (!(claim instanceof List<?> values)) {
+            return List.of();
+        }
+        return values.stream().map(String::valueOf).toList();
     }
 }
