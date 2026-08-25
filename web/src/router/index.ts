@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import BootstrapView from '@/views/BootstrapView.vue'
 import CampusView from '@/views/CampusView.vue'
 import LoginView from '@/views/LoginView.vue'
+import UserDirectoryView from '@/views/UserDirectoryView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -19,6 +20,12 @@ const router = createRouter({
       name: 'campuses',
       component: CampusView,
       meta: { requiresAuth: true, permission: 'campus.read' },
+    },
+    {
+      path: '/users',
+      name: 'users',
+      component: UserDirectoryView,
+      meta: { requiresAuth: true, permission: 'user.read' },
     },
     {
       path: '/login',

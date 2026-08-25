@@ -69,6 +69,7 @@ zoom-platform/
 - 表关系、数据范围与迁移约定见 [`docs/database-foundation.md`](docs/database-foundation.md)。
 - 登录、令牌、账户锁定与权限上下文见 [`docs/authentication-foundation.md`](docs/authentication-foundation.md)。
 - 校区接口、数据范围、乐观锁和操作审计见 [`docs/campus-management.md`](docs/campus-management.md)。
+- 用户目录接口、关联信息脱敏和前端边界见 [`docs/user-directory.md`](docs/user-directory.md)。
 
 ## 当前功能
 
@@ -78,6 +79,7 @@ zoom-platform/
 - `campus.read`、`campus.manage` 权限与 `ALL`、`ASSIGNED_CAMPUSES` 数据范围联合校验。
 - 校区写操作使用 `version` 乐观锁，并写入 `sys_operation_audit`。
 - 桌面表格与移动端卡片布局，共用响应式管理后台导航。
+- 用户目录分页查询、状态/校区筛选和只读详情，按用户数据范围隔离。
 
 ## 质量检查
 

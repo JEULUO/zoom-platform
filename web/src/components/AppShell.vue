@@ -30,7 +30,7 @@ const sidebarOpen = ref(false)
 const navigation = [
   { key: 'overview', icon: Gauge, routeName: 'bootstrap' },
   { key: 'campus', icon: Building2, routeName: 'campuses', permission: 'campus.read' },
-  { key: 'people', icon: Users },
+  { key: 'people', icon: Users, routeName: 'users', permission: 'user.read' },
   { key: 'courses', icon: BookOpen },
   { key: 'finance', icon: CircleDollarSign },
 ]
